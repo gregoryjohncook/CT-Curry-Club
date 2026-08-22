@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>The Cape Town Curry Club</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,500&family=Work+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+
+  :root {
+    --masala: #1E1310;
+    --ledger: #2B1D17;
+    --hairline: #4A362B;
+    --ghee: #F6E9CE;
+    --ghee-dim: #C9B79A;
+    --brass: #C9992B;
+    --brass-dim: #8C6E3A;
+    --chili: #C0392B;
+    --chili-dim: #5A3A34;
+    --cardamom: #8AA06B;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--masala); }
+  body {
+    font-family: 'Work Sans', sans-serif;
+    color: var(--ghee);
+  }
+  #root { position: relative; overflow: hidden; min-height: 100vh; padding: 32px 16px 64px; }
+  .wrap { max-width: 720px; margin: 0 auto; position: relative; z-index: 1; }
+  .backdrop { position: fixed; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; }
+  .backdrop span { position: absolute; opacity: 0.07; }
+
+  h1, h3 { font-family: 'Fraunces', serif; margin: 0; }
+  .mono { font-family: 'JetBrains Mono', monospace; }
+
+  .cc-input {
+    background: var(--masala);
+    border: 1px solid var(--hairline);
+    color: var(--ghee);
+    font-family: 'Work Sans', sans-serif;
+    font-size: 14px;
+    padding: 9px 12px;
+    border-radius: 4px;
+    width: 100%;
+    outline: none;
+    transition: border-color 0.15s ease;
+  }
+  .cc-input::placeholder { color: var(--brass-dim); }
+  .cc-input:focus { border-color: var(--brass); }
+
+  .cc-btn {
+    font-family: 'Work Sans', sans-serif;
+    font-weight: 600;
+    font-size: 13px;
+    letter-spacing: 0.03em;
+    border-radius: 4px;
+    padding: 10px 18px;
+    border: 1px solid var(--brass);
+    background: transparent;
+    color: var(--brass);
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+  .cc-btn:hover { background: var(--brass); color: var(--masala); }
+  .cc-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .cc-btn:disabled:hover { background: transparent; color: var(--brass); }
+  .cc-btn-solid { background: var(--brass); color: var(--masala); }
+  .cc-btn-solid:hover { background: var(--ghee); }
+
+  .cc-card {
+    background: var(--ledger);
+    border: 1px solid var(--hairline);
+    border-radius: 6px;
+    transition: border-color 0.15s ease;
+  }
+  .cc-card:hover { border-color: var(--brass-dim); }
+
+  .cc-link {
+    background: none; border: none;
+    color: var(--brass);
+    font-family: 'Work Sans', sans-serif;
+    font-size: 13px; font-weight: 500;
+    cursor: pointer; padding: 0;
+  }
+  .cc-link:hover { text-decoration: underline; }
+  .cc-btn:focus-visible, .cc-input:focus-visible, .cc-link:focus-visible {
+    outline: 2px solid var(--cardamom); outline-offset: 2px;
+  }
+
+  .row-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+  @media (max-width: 520px) {
+    .row-header { flex-direction: column; align-items: flex-start !important; gap: 10px !important; }
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="module">
+  import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+  // ---------- fill these in from your Supabase project (Settings > API) ----------
+  const SUPABASE_URL = 'https://YOUR-PROJECT-REF.supabase.co';
+  const SUPABASE_ANON_KEY = 'YOUR-ANON-PUBLIC-KEY';
+  // --------------------------------------------------------------------------------
+
+  const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  // Members sign in with a magic link sent to their email — no passwords
+  // to share or leak. Access is enforced server-side by the RLS policies
+  // in schema.sql, not just by hiding the UI.
+
+  const state = {
+    loading: true,
+    memberName: localStorage.getItem('curry-club-member') || '',
+    restaurants: [],
+    reviewsByRestaurant: {},
+    sortMode: 'top',
+    showAdd: false,
+    expandedId: null,
+    error: null,
+    session: null,
+    magicLinkSent: false,
+    authError: null,
+  };
+
+  const ratingDraft = {}; // { [restaurantId]: heat } — kept outside state so it survives without a full re-render
+
+  function chiliSVG(filled, size) {
+    const stroke = filled ? 'var(--chili)' : 'var(--chili-dim)';
+    const fill = filled ? 'var(--chili)' : 'none';
+    return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" style="flex-shrink:0">
+      <path d="M14.7 2.6c.9.3 1.3 1.2 1 2.1-.3.8-1.1 2.1-1.1 3.6 0 4.1 2.8 6.3 2.8 10 0 3.6-2.9 6.5-6.5 6.5S4.4 22 4.4 18.4c0-2.4 1.1-3.7 2.3-5 1-1.1 2.3-2.6 2.3-5.5 0-2.2.9-3.7 2.2-4.7.9-.7 2.1-.8 3.5-.6z"
+        fill="${fill}" stroke="${stroke}" stroke-width="1.5"/></svg>`;
+  }
+
+  function chiliRowStatic(value, size = 15) {
+    let html = '<div style="display:flex;gap:3px">';
+    for (let n = 1; n <= 5; n++) html += chiliSVG(n <= Math.round(value), size);
+    return html + '</div>';
+  }
+
+  function chiliRowInteractive(restaurantId, size = 18) {
+    let html = `<div style="display:flex;gap:3px" data-role="rating-chilis" data-restaurant="${restaurantId}">`;
+    for (let n = 1; n <= 5; n++) {
+      html += `<span style="cursor:pointer" onclick="setHeat('${restaurantId}', ${n})" data-n="${n}">${chiliSVG(false, size)}</span>`;
+    }
+    return html + '</div>';
+  }
+
+  window.setHeat = function (id, n) {
+    ratingDraft[id] = n;
+    const container = document.querySelector(`[data-role="rating-chilis"][data-restaurant="${id}"]`);
+    if (!container) return;
+    container.querySelectorAll('span').forEach((span) => {
+      const num = parseInt(span.getAttribute('data-n'));
+      span.innerHTML = chiliSVG(num <= n, 18);
+    });
+  };
+
+  function sumHeat(list) { return (list || []).reduce((s, r) => s + r.heat, 0); }
+  function avgHeat(list) { return (list && list.length) ? sumHeat(list) / list.length : null; }
+  function verdict(avg) {
+    if (avg === null) return { label: 'Unrated', color: 'var(--ghee-dim)' };
+    if (avg >= 4.5) return { label: 'House Favourite', color: 'var(--brass)' };
+    if (avg >= 3.5) return { label: 'Solid Regular', color: 'var(--cardamom)' };
+    if (avg >= 2.5) return { label: 'Hit or Miss', color: 'var(--ghee-dim)' };
+    return { label: 'Proceed with Caution', color: 'var(--chili)' };
+  }
+  function formatDateTime(ts) {
+    if (!ts) return '';
+    const d = new Date(ts);
+    const datePart = d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+    const timePart = d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+    return `${datePart} \u00b7 ${timePart}`;
+  }
+  function escapeHtml(str) {
+    return (str || '').replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+  }
+
+  async function loadData() {
+    try {
+      const { data: restaurants, error: rErr } = await supabase
+        .from('restaurants').select('*').order('order_num', { ascending: true });
+      if (rErr) throw rErr;
+
+      const { data: reviews, error: vErr } = await supabase
+        .from('reviews').select('*').order('created_at', { ascending: false });
+      if (vErr) throw vErr;
+
+      const grouped = {};
+      (reviews || []).forEach((rv) => {
+        (grouped[rv.restaurant_id] = grouped[rv.restaurant_id] || []).push(rv);
+      });
+
+      state.restaurants = restaurants || [];
+      state.reviewsByRestaurant = grouped;
+      state.error = null;
+    } catch (e) {
+      console.error(e);
+      state.error = 'Could not reach the register. Check your Supabase URL and key.';
+    }
+    state.loading = false;
+    render();
+  }
+
+  window.joinRegister = async function () {
+    const val = document.getElementById('name-draft').value.trim();
+    if (!val) return;
+    state.memberName = val;
+    localStorage.setItem('curry-club-member', val);
+    render();
+  };
+
+  window.leaveRegister = function () {
+    state.memberName = '';
+    localStorage.removeItem('curry-club-member');
+    render();
+  };
+
+  window.toggleAdd = function () {
+    state.showAdd = !state.showAdd;
+    render();
+  };
+
+  window.setSortMode = function (mode) {
+    state.sortMode = mode;
+    render();
+  };
+
+  window.toggleExpand = function (id) {
+    state.expandedId = state.expandedId === id ? null : id;
+    render();
+  };
+
+  window.addRestaurant = async function () {
+    const name = document.getElementById('new-name').value.trim();
+    const location = document.getElementById('new-location').value.trim();
+    const specialty = document.getElementById('new-specialty').value.trim();
+    if (!name) return;
+    const { data, error } = await supabase.from('restaurants').insert({
+      name, location, specialty, order_num: state.restaurants.length + 1,
+    }).select().single();
+    if (error) { console.error(error); state.error = 'Could not add that restaurant. Try again.'; render(); return; }
+    state.showAdd = false;
+    await loadData();
+    state.expandedId = data.id;
+    render();
+  };
+
+  window.submitRating = async function (restaurantId) {
+    const heat = ratingDraft[restaurantId];
+    if (!state.memberName || !heat) return;
+    const dish = document.getElementById(`dish-${restaurantId}`).value.trim();
+    const note = document.getElementById(`note-${restaurantId}`).value.trim().slice(0, 250);
+    const { error } = await supabase.from('reviews').insert({
+      restaurant_id: restaurantId, member: state.memberName, heat, dish, note,
+    });
+    if (error) { console.error(error); state.error = 'Could not submit your rating. Try again.'; render(); return; }
+    delete ratingDraft[restaurantId];
+    await loadData();
+  };
+
+  window.updateCounter = function (restaurantId) {
+    const el = document.getElementById(`note-${restaurantId}`);
+    const counter = document.getElementById(`count-${restaurantId}`);
+    if (el.value.length > 250) el.value = el.value.slice(0, 250);
+    counter.textContent = `${el.value.length}/250`;
+  };
+
+  function backdropHTML() {
+    const chilies = [
+      { top: '-4%', left: '6%', size: 160, rot: -18 },
+      { top: '8%', left: '78%', size: 120, rot: 25 },
+      { top: '28%', left: '-6%', size: 140, rot: 10 },
+      { top: '42%', left: '88%', size: 180, rot: -30 },
+      { top: '60%', left: '10%', size: 110, rot: 35 },
+      { top: '72%', left: '70%', size: 150, rot: -12 },
+      { top: '90%', left: '30%', size: 130, rot: 20 },
+      { top: '18%', left: '40%', size: 90, rot: -8 },
+    ];
+    return `<div class="backdrop">${chilies.map(c =>
+      `<span style="top:${c.top};left:${c.left};transform:rotate(${c.rot}deg)">${chiliSVG(true, c.size)}</span>`
+    ).join('')}</div>`;
+  }
+
+  function headerHTML() {
+    const totalReviews = Object.values(state.reviewsByRestaurant).reduce((s, arr) => s + arr.length, 0);
+    return `
+      <header style="text-align:center;margin-bottom:28px">
+        <div style="width:68px;height:68px;border-radius:50%;border:2px solid var(--brass);margin:0 auto 14px;
+                    display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace">
+          <span style="font-size:9px;letter-spacing:0.15em;color:var(--brass-dim)">EST.</span>
+          ${chiliSVG(true, 22)}
+        </div>
+        <h1 style="font-weight:700;font-size:34px;letter-spacing:-0.01em">The Cape Town Curry Club</h1>
+        <p style="margin:6px 0 0;font-size:12px;letter-spacing:0.14em;text-transform:uppercase;color:var(--ghee-dim)">
+          A Members&rsquo; Register of Indian Restaurants</p>
+        <p class="mono" style="margin:10px 0 0;font-size:12.5px;color:var(--brass-dim)">
+          ${state.restaurants.length} ${state.restaurants.length === 1 ? 'entry' : 'entries'} on record &middot;
+          ${totalReviews} tasting ${totalReviews === 1 ? 'note' : 'notes'}</p>
+      </header>`;
+  }
+
+  function memberBarHTML() {
+    const emailLine = `<span style="font-size:11px;color:var(--brass-dim)">${escapeHtml(state.session.user.email)} &middot; <button class="cc-link" style="font-size:11px" onclick="signOut()">sign out</button></span>`;
+    if (state.memberName) {
+      return `
+        <div class="cc-card" style="padding:12px 16px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+          <span style="font-size:13.5px">Registered as <strong style="color:var(--brass)">${escapeHtml(state.memberName)}</strong></span>
+          <div style="display:flex;align-items:center;gap:14px">
+            <button class="cc-link" onclick="leaveRegister()">not you?</button>
+            ${emailLine}
+          </div>
+        </div>`;
+    }
+    return `
+      <div class="cc-card" style="padding:12px 16px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <input id="name-draft" class="cc-input" style="max-width:220px" placeholder="Your name"
+                 onkeydown="if(event.key==='Enter') joinRegister()" />
+          <button class="cc-btn" onclick="joinRegister()">Join the Register</button>
+        </div>
+        ${emailLine}
+      </div>`;
+  }
+
+  function controlsHTML() {
+    return `
+      <div class="row-header">
+        <div style="display:flex;gap:6px">
+          <button class="cc-link" style="color:${state.sortMode === 'top' ? 'var(--brass)' : 'var(--ghee-dim)'};font-weight:${state.sortMode === 'top' ? 600 : 500}" onclick="setSortMode('top')">Top Rated</button>
+          <button class="cc-link" style="color:${state.sortMode === 'new' ? 'var(--brass)' : 'var(--ghee-dim)'};font-weight:${state.sortMode === 'new' ? 600 : 500}" onclick="setSortMode('new')">Newest First</button>
+        </div>
+        <button class="cc-btn cc-btn-solid" onclick="toggleAdd()">${state.showAdd ? 'Cancel' : '+ Induct a Restaurant'}</button>
+      </div>`;
+  }
+
+  function addFormHTML() {
+    if (!state.showAdd) return '';
+    return `
+      <div class="cc-card" style="padding:18px;margin-bottom:22px">
+        <div style="display:grid;gap:10px">
+          <input id="new-name" class="cc-input" placeholder="Restaurant name" />
+          <input id="new-location" class="cc-input" placeholder="Neighbourhood or address" />
+          <input id="new-specialty" class="cc-input" placeholder="Known for (e.g. lamb rogan josh)" />
+          <div><button class="cc-btn cc-btn-solid" onclick="addRestaurant()">Add to Register</button></div>
+        </div>
+      </div>`;
+  }
+
+  function reviewHTML(rv) {
+    return `
+      <div style="font-size:13px">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <strong style="color:var(--ghee)">${escapeHtml(rv.member) || 'A member'}</strong>
+          ${chiliRowStatic(rv.heat, 12)}
+        </div>
+        <p class="mono" style="margin:2px 0 0;font-size:11px;color:var(--brass-dim)">${formatDateTime(rv.created_at)}</p>
+        ${rv.dish ? `<p style="margin:3px 0 0;font-style:italic;color:var(--brass);font-size:12.5px">Recommends: ${escapeHtml(rv.dish)}</p>` : ''}
+        ${rv.note ? `<p style="margin:3px 0 0;color:var(--ghee-dim)">${escapeHtml(rv.note)}</p>` : ''}
+      </div>`;
+  }
+
+  function detailHTML(restaurant, reviews) {
+    const id = restaurant.id;
+    return `
+      <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--hairline)">
+        ${reviews.length ? `<div style="display:grid;gap:10px;margin-bottom:16px">${reviews.map(reviewHTML).join('')}</div>` : ''}
+        <div style="display:grid;gap:8px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="font-size:12.5px;color:var(--ghee-dim);min-width:90px">Your rating</span>
+            ${chiliRowInteractive(id, 18)}
+          </div>
+          <input id="dish-${id}" class="cc-input" placeholder="A dish worth ordering (optional)" />
+          <div>
+            <textarea id="note-${id}" class="cc-input" placeholder="Comments (optional)" rows="2" maxlength="250"
+                      style="resize:vertical;font-family:'Work Sans',sans-serif" oninput="updateCounter('${id}')"></textarea>
+            <p id="count-${id}" style="margin:3px 2px 0;font-size:11px;color:var(--brass-dim);text-align:right">0/250</p>
+          </div>
+          ${!state.memberName ? `<p style="font-size:12px;color:var(--chili);margin:0">Join the register above before submitting a rating.</p>` : ''}
+          <div><button class="cc-btn cc-btn-solid" onclick="submitRating('${id}')" ${!state.memberName ? 'disabled' : ''}>Submit Rating</button></div>
+        </div>
+      </div>`;
+  }
+
+  function restaurantCardHTML(r) {
+    const list = state.reviewsByRestaurant[r.id] || [];
+    const avg = avgHeat(list);
+    const v = verdict(avg);
+    const isOpen = state.expandedId === r.id;
+    return `
+      <div class="cc-card" style="padding:16px">
+        <div style="display:flex;justify-content:space-between;gap:14px;cursor:pointer" onclick="toggleExpand('${r.id}')">
+          <div style="display:flex;gap:12px;min-width:0">
+            <span class="mono" style="color:var(--brass-dim);font-size:12px;padding-top:3px;flex-shrink:0">
+              No. ${String(r.order_num).padStart(3, '0')}</span>
+            <div style="min-width:0">
+              <h3 style="font-size:18px;font-weight:600">${escapeHtml(r.name)}</h3>
+              <p style="margin:3px 0 0;font-size:12.5px;color:var(--ghee-dim)">
+                ${[r.location, r.specialty].filter(Boolean).map(escapeHtml).join(' &middot; ')}</p>
+            </div>
+          </div>
+          <div style="text-align:right;flex-shrink:0">
+            ${chiliRowStatic(avg || 0, 15)}
+            <p class="mono" style="margin:4px 0 0;font-size:12px;color:var(--brass)">
+              ${avg === null ? '\u2014' : avg.toFixed(1) + ' avg'} &middot; ${sumHeat(list)} total</p>
+            <p style="margin:3px 0 0;font-size:11px;color:${v.color};font-weight:600">${v.label}</p>
+            <p style="margin:1px 0 0;font-size:11px;color:var(--brass-dim)">${list.length} ${list.length === 1 ? 'review' : 'reviews'}</p>
+          </div>
+        </div>
+        ${isOpen ? detailHTML(r, [...list].sort((a, b) => new Date(b.created_at) - new Date(a.created_at))) : ''}
+      </div>`;
+  }
+
+  function listHTML() {
+    if (state.loading) return `<p style="text-align:center;color:var(--ghee-dim);font-size:13.5px">Opening the register&hellip;</p>`;
+    if (state.error) return `<p style="text-align:center;color:var(--chili);font-size:13.5px">${state.error}</p>`;
+    if (state.restaurants.length === 0) {
+      return `
+        <div class="cc-card" style="padding:40px 20px;text-align:center">
+          <p style="font-family:'Fraunces',serif;font-size:18px;margin:0 0 6px">The register is empty.</p>
+          <p style="font-size:13.5px;color:var(--ghee-dim);margin:0">Be the first member to induct a restaurant.</p>
+        </div>`;
+    }
+    const sorted = [...state.restaurants].sort((a, b) => {
+      if (state.sortMode === 'new') return new Date(b.added_at) - new Date(a.added_at);
+      const avgA = avgHeat(state.reviewsByRestaurant[a.id]);
+      const avgB = avgHeat(state.reviewsByRestaurant[b.id]);
+      if (avgA === null && avgB === null) return a.order_num - b.order_num;
+      if (avgA === null) return 1;
+      if (avgB === null) return -1;
+      return avgB - avgA;
+    });
+    return `<div style="display:grid;gap:12px">${sorted.map(restaurantCardHTML).join('')}</div>`;
+  }
+
+  window.sendMagicLink = async function () {
+    const email = document.getElementById('gate-email').value.trim();
+    if (!email) return;
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: { emailRedirectTo: window.location.href },
+    });
+    if (error) {
+      state.authError = error.message;
+      state.magicLinkSent = false;
+    } else {
+      state.authError = null;
+      state.magicLinkSent = true;
+    }
+    render();
+  };
+
+  window.signOut = async function () {
+    await supabase.auth.signOut();
+    state.session = null;
+    state.magicLinkSent = false;
+    render();
+  };
+
+  function gateHTML() {
+    if (state.magicLinkSent) {
+      return `
+        <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:16px">
+          <div class="cc-card" style="padding:32px 28px;max-width:360px;width:100%;text-align:center">
+            <div style="width:56px;height:56px;border-radius:50%;border:2px solid var(--brass);margin:0 auto 16px;
+                        display:flex;align-items:center;justify-content:center">${chiliSVG(true, 22)}</div>
+            <h1 style="font-size:20px;font-weight:700;margin-bottom:8px">Check your email</h1>
+            <p style="font-size:12.5px;color:var(--ghee-dim);margin:0">We've sent a sign-in link. Open it on this device to enter the register.</p>
+          </div>
+        </div>`;
+    }
+    return `
+      <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:16px">
+        <div class="cc-card" style="padding:32px 28px;max-width:360px;width:100%;text-align:center">
+          <div style="width:56px;height:56px;border-radius:50%;border:2px solid var(--brass);margin:0 auto 16px;
+                      display:flex;align-items:center;justify-content:center">${chiliSVG(true, 22)}</div>
+          <h1 style="font-size:22px;font-weight:700;margin-bottom:6px">The Cape Town Curry Club</h1>
+          <p style="font-size:12.5px;color:var(--ghee-dim);margin:0 0 18px">Members only. Enter your email for a sign-in link.</p>
+          <input id="gate-email" type="email" class="cc-input" placeholder="you@example.com"
+                 onkeydown="if(event.key==='Enter') sendMagicLink()" style="margin-bottom:10px" />
+          ${state.authError ? `<p style="font-size:12px;color:var(--chili);margin:0 0 10px">${escapeHtml(state.authError)}</p>` : ''}
+          <button class="cc-btn cc-btn-solid" style="width:100%" onclick="sendMagicLink()">Send Sign-In Link</button>
+        </div>
+      </div>`;
+  }
+
+  function render() {
+    if (!state.session) {
+      document.getElementById('root').innerHTML = gateHTML();
+      if (!state.magicLinkSent) setTimeout(() => document.getElementById('gate-email')?.focus(), 0);
+      return;
+    }
+    document.getElementById('root').innerHTML = `
+      ${backdropHTML()}
+      <div class="wrap">
+        ${headerHTML()}
+        ${memberBarHTML()}
+        ${controlsHTML()}
+        ${addFormHTML()}
+        ${listHTML()}
+      </div>`;
+  }
+
+  // live updates: if another member adds a restaurant or review, refresh
+  supabase.channel('club-changes')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'restaurants' }, () => { if (state.session) loadData(); })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'reviews' }, () => { if (state.session) loadData(); })
+    .subscribe();
+
+  supabase.auth.onAuthStateChange((_event, session) => {
+    state.session = session;
+    state.magicLinkSent = false;
+    render();
+    if (session) loadData();
+  });
+
+  render();
+  supabase.auth.getSession().then(({ data: { session } }) => {
+    state.session = session;
+    render();
+    if (session) loadData();
+  });
+</script>
+</body>
+</html>
