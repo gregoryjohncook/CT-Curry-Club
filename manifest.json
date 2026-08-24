@@ -6,34 +6,34 @@
   "orientation": "portrait-primary",
   "icons": [
    {
-     "src": "img/icons/launchericon-72x72.png",
+     "src": "CT-Curry-Club/img/icons/launchericon-72x72.png",
      "type": "image/png",
      "sizes": "72x72"
    }
    {
-     "src": "img/launchericon-96x96.png",
+     "src": "CT-Curry-Club/img/launchericon-96x96.png",
      "type": "image/png",
      "sizes": "96x96"
    }
    {
-     "src": "img/launchericon-144x144.png",
+     "src": "CT-Curry-Club/img/launchericon-144x144.png",
      "type": "image/png",
      "sizes": "144x144"
    }
    {
-     "src": "img/launchericon-192x192.png",
+     "src": "CT-Curry-Club/img/launchericon-192x192.png",
      "type": "image/png",
      "sizes": "192x192"
    }
    {
-     "src": "img/launchericon-512x512.png",
+     "src": "CT-Curry-Club/img/launchericon-512x512.png",
      "type": "image/png",
      "sizes": "512x512"
    }
 ],
   "scope": "/",
   "short_name": "CurryClub",
-  "start_url": "/index.html",
+  "start_url": "CT-Curry-Club/index.html",
   "theme_color": "#ffffff",
   "id": "CTCC",
   "description": "Cape Town Curry Club app allows registered members to review local Asian restaurants and other eateries. Scores (1 to 5 flames)are averaged.",
