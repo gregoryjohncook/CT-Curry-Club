@@ -31,11 +31,10 @@
      "sizes": "512x512"
    }
 ],
-  "scope": "/",
   "short_name": "CurryClub",
-  "start_url": "CT-Curry-Club/index.html",
+  "start_url": "/CT-Curry-Club/",
   "theme_color": "#ffffff",
-  "id": "CTCC",
+  "id": "/CT-Curry-Club/",
   "description": "Cape Town Curry Club app allows registered members to review local Asian restaurants and other eateries. Scores (1 to 5 flames)are averaged.",
   "lang": "en",
   "categories": [
