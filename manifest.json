@@ -6,24 +6,24 @@
   "orientation": "portrait-primary",
   "icons": [
    {
-     "src": "CT-Curry-Club/img/icons/launchericon-72x72.png",
+     "src": "./img/icons/launchericon-72x72.png",
      "sizes": "72x72"
    },
    {
-     "src": "CT-Curry-Club/img/launchericon-96x96.png",
+     "src": "./img/launchericon-96x96.png",
      "sizes": "96x96"
    },
    {
-     "src": "CT-Curry-Club/img/launchericon-144x144.png",
+     "src": "./img/launchericon-144x144.png",
      "type": "image/png",
      "sizes": "144x144"
    },
    {
-     "src": "CT-Curry-Club/img/launchericon-192x192.png",
+     "src": "./img/launchericon-192x192.png",
      "sizes": "192x192"
    },
    {
-     "src": "CT-Curry-Club/img/launchericon-512x512.png",
+     "src": "./img/launchericon-512x512.png",
      "sizes": "512x512"
    }
 ],
